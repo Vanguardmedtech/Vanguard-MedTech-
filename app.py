@@ -1,15 +1,51 @@
-import gradio as gr
+import streamlit as st
+import torch
 
-def respond(message, history):
-    # Process user input and media attachments
-    if isinstance(message, dict):
-        text_content = message.get("text", "")
-        files = message.get("files", [])
-    else:
-        text_content = str(message)
-        files = []
+st.set_page_config(page_title="Vanguard MedTech AI", page_icon="🩺", layout="wide")
 
-    system_prompt = """You are the Vanguard MedTech Clinical Assistant, a specialized AI for healthcare providers across Africa.
+# Custom Glassmorphism CSS for Streamlit
+st.markdown("""
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #090614 0%, #120a2a 50%, #0a1128 100%) !important;
+        color: #e2e8f0 !important;
+    }
+    .vanguard-greeting {
+        font-size: 2.3rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #c084fc, #818cf8, #38bdf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.6rem;
+        text-align: center;
+    }
+    .vanguard-subtext {
+        font-size: 1.15rem;
+        color: #94a3b8;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    st.title("🏥 Vanguard MedTech")
+    st.markdown("---")
+    if st.button("➕ New Consultation", use_container_width=True):
+        st.session_state.messages = []
+    st.markdown("### **Recent Consultations**")
+    st.markdown("• *Pediatric Fever Evaluation*")
+    st.markdown("• *Malaria Diagnostic Protocol*")
+    st.markdown("• *Respiratory Distress Protocol*")
+    st.markdown("• *Maternal Care Triage*")
+
+# Hero Header
+st.markdown('<div class="vanguard-greeting">Welcome to Vanguard MedTech</div>', unsafe_allow_html=True)
+st.markdown('<div class="vanguard-subtext">How can Vanguard AI assist your clinical workflow today?</div>', unsafe_allow_html=True)
+
+# System Prompt
+system_prompt = """You are the Vanguard MedTech Clinical Assistant, a specialized AI for healthcare providers across Africa.
 
 When responding to clinical inquiries, ALWAYS format your output clearly using standard text bolding like this:
 
@@ -29,38 +65,41 @@ When responding to clinical inquiries, ALWAYS format your output clearly using s
 - State: "Vanguard AI is a decision-support tool. Clinical decisions must be made by a qualified healthcare professional."
 """
 
-    messages = [{"role": "system", "content": system_prompt}]
+# Initialize Chat History
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    # Process multi-turn chat history
-    for turn in history:
-        if isinstance(turn, (list, tuple)):
-            u_text = turn[0] if len(turn) > 0 and turn[0] else ""
-            a_text = turn[1] if len(turn) > 1 and turn[1] else ""
-        elif isinstance(turn, dict):
-            u_text = turn.get("user", "") or turn.get("content", "")
-            a_text = turn.get("assistant", "")
-        else:
-            u_text, a_text = "", ""
+# Display Existing Chat
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-        if u_text:
-            messages.append({"role": "user", "content": str(u_text)})
-        if a_text:
-            messages.append({"role": "assistant", "content": str(a_text)})
+# User Input
+if prompt := st.chat_input("Ask Vanguard AI..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-    user_input_str = text_content
-    if files:
-        file_list = ", ".join([str(f) for f in files])
-        user_input_str += f"\n[Attached file(s): {file_list}]"
+    # Format turns for conversation history
+    history_formatted = []
+    for m in st.session_state.messages[:-1]:
+        history_formatted.append({"role": m["role"], "content": m["content"]})
 
-    # Fetch Real-Time & Local Pan-African Clinical Context
-    clinical_context = retrieve_pan_african_context(user_input_str)
+    # Execute Clinical Logic
+    user_input_str = prompt
+    
+    # Check retrieve function if defined in helper scripts
+    try:
+        clinical_context = retrieve_pan_african_context(user_input_str)
+    except NameError:
+        clinical_context = None
 
     if clinical_context:
         augmented_input = f"Relevant Protocol Context:\n{clinical_context}\n\nClinical Inquiry:\n{user_input_str}"
     else:
         augmented_input = user_input_str
 
-    messages.append({"role": "user", "content": augmented_input})
+    messages = [{"role": "system", "content": system_prompt}] + history_formatted + [{"role": "user", "content": augmented_input}]
 
     try:
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -81,121 +120,6 @@ When responding to clinical inquiries, ALWAYS format your output clearly using s
     except Exception as e:
         response = f"Clinical Processing Error: {str(e)}. Please retry your prompt."
 
-    return response
-
-# Custom Glassmorphism CSS
-vanguard_css = """
-footer, .gradio-container footer, .api-docs, #settings-btn, .built-with,
-[data-testid="block-label"], .label, .component-title, .chatbot-header,
-.chatbot-label, span.label {
-    display: none !important;
-}
-
-body, .gradio-container {
-    background: linear-gradient(135deg, #090614 0%, #120a2a 50%, #0a1128 100%) !important;
-    color: #e2e8f0 !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-}
-
-.vanguard-hero-container {
-    text-align: center;
-    padding: 35px 15px 15px 15px;
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.vanguard-greeting {
-    font-size: 2.3rem;
-    font-weight: 700;
-    background: linear-gradient(90deg, #c084fc, #818cf8, #38bdf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 0.6rem;
-    line-height: 1.2;
-}
-
-.vanguard-subtext {
-    font-size: 1.15rem;
-    color: #94a3b8;
-    line-height: 1.5;
-}
-
-.message.user {
-    background: rgba(124, 58, 237, 0.45) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(168, 85, 247, 0.5) !important;
-    color: #ffffff !important;
-    border-radius: 20px 20px 4px 20px !important;
-    box-shadow: 0 8px 32px 0 rgba(124, 58, 237, 0.25) !important;
-}
-
-.message.bot {
-    background: rgba(18, 14, 38, 0.65) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(99, 102, 241, 0.3) !important;
-    color: #f1f5f9 !important;
-    border-radius: 20px 20px 20px 4px !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
-}
-
-.gradio-container textarea, .gradio-container .multimodal-textbox {
-    border-radius: 30px !important;
-    background: rgba(20, 15, 40, 0.7) !important;
-    backdrop-filter: blur(10px) !important;
-    border: 1.5px solid rgba(139, 92, 246, 0.6) !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.15) !important;
-}
-"""
-
-custom_theme = gr.themes.Soft(
-    primary_hue="purple",
-    secondary_hue="violet",
-    neutral_hue="slate"
-)
-
-custom_textbox = gr.MultimodalTextbox(
-    interactive=True,
-    file_types=["image", "audio"],
-    placeholder="Ask Vanguard AI...",
-    show_label=False,
-    sources=["upload", "microphone"],
-    file_count="multiple"
-)
-
-custom_chatbot = gr.Chatbot(
-    show_label=False,
-    avatar_images=None
-)
-
-with gr.Blocks(theme=custom_theme, css=vanguard_css, title="Vanguard MedTech AI") as demo:
-
-    with gr.Sidebar(position="left", open=False):
-        gr.Markdown("## 🏥 Vanguard MedTech")
-        gr.Markdown("---")
-        gr.Button("➕ New Consultation", variant="primary")
-        gr.Markdown("### **Recent Consultations**")
-        gr.Markdown("• *Pediatric Fever Evaluation*")
-        gr.Markdown("• *Malaria Diagnostic Protocol*")
-        gr.Markdown("• *Respiratory Distress Protocol*")
-        gr.Markdown("• *Maternal Care Triage*")
-
-    gr.HTML("""
-        <div class="vanguard-hero-container">
-            <div class="vanguard-greeting">Welcome to Vanguard MedTech</div>
-            <div class="vanguard-subtext">How can Vanguard AI assist your clinical workflow today?</div>
-        </div>
-    """)
-
-    gr.ChatInterface(
-        fn=respond,
-        multimodal=True,
-        textbox=custom_textbox,
-        chatbot=custom_chatbot,
-        title="",
-        description=""
-    )
-
-demo.launch(share=True)
+    with st.chat_message("assistant"):
+        st.markdown(response)
+    st.session_state.messages.append({"role": "assistant", "content": response})
