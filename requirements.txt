@@ -4,3 +4,4 @@ transformers
 duckduckgo_search
 langchain
 langchain-community
+gradio
