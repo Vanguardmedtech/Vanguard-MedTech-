@@ -1,0 +1,6 @@
+streamlit
+torch
+transformers
+duckduckgo_search
+langchain
+langchain-community
