@@ -1,5 +1,16 @@
 import streamlit as st
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+# Load Model and Tokenizer into Streamlit Cache
+@st.cache_resource
+def load_vanguard_model():
+    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    return tokenizer, model
+
+tokenizer, model = load_vanguard_model()
 
 st.set_page_config(page_title="Vanguard MedTech AI", page_icon="🩺", layout="wide")
 
