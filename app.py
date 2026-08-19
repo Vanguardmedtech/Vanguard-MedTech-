@@ -1,5 +1,6 @@
 import streamlit as st
 import torch
+from audio_recorder_streamlit import audio_recorder
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Load Model and Tokenizer into Streamlit Cache
