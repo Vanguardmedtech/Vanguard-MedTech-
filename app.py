@@ -85,8 +85,24 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# User Input
-if prompt := st.chat_input("Ask Vanguard AI..."):
+# --- Media Inputs (File & Audio) ---
+uploaded_file = st.file_uploader("Attach clinical document/image", type=["pdf", "png", "jpg", "txt"], label_visibility="collapsed")
+
+col_mic, col_spacer = st.columns([1, 4])
+with col_mic:
+    audio_bytes = audio_recorder(text="Record Voice", recording_color="#ef4444", neutral_color="#6366f1", icon_size="2x")
+
+# --- Handle Voice & File Notifications ---
+if audio_bytes:
+    st.info("🎙️ Audio recorded! Processing voice input...")
+
+if uploaded_file:
+    st.success(f"📎 Attached file: {uploaded_file.name}")
+
+# --- Text Chat Input ---
+prompt = st.chat_input("Ask Vanguard AI...")
+
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -98,13 +114,58 @@ if prompt := st.chat_input("Ask Vanguard AI..."):
 
     # Execute Clinical Logic
     user_input_str = prompt
-    
+
     # Check retrieve function if defined in helper scripts
     try:
         clinical_context = retrieve_pan_african_context(user_input_str)
     except NameError:
         clinical_context = None
 
+    if clinical_context:
+        augmented_input = f"Relevant Protocol Context:\n{clinical_context}\n\nQuery: {user_input_str}"
+    else:
+        augmented_input = user_input_str
+
+    messages = [{"role": "system", "content": system_prompt}] + history_formatted + [{"role": "user", "content": augmented_input}]
+
+    try:
+        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        model_inputs = tokenizer([text], return_tensors="pt")
+
+        generated_ids = model.generate(
+            **model_inputs,
+            max_new_tokens=350,
+            do_sample=True,
+            temperature=0.6,
+            top_p=0.9
+        )
+
+        response = tokenizer.batch_decode(
+            [out[len(inp):] for inp, out in zip(model_inputs.input_ids, generated_ids)],
+            skip_special_tokens=True
+        )[0]
+    except Exception as e:
+        response = f"Clinical Processing Error: {str(e)}. Please retry."
+
+    with st.chat_message("assistant"):
+        st.markdown(response)
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
+
+    # Format turns for conversation history (INDENTED)
+    history_formatted = []
+    for m in st.session_state.messages[:-1]:
+        history_formatted.append({"role": m["role"], "content": m["content"]})
+
+    # Execute Clinical Logic
+    user_input_str = prompt
+
+    # Check retrieve function if defined in helper scripts
+    try:
+        clinical_context = retrieve_pan_african_context(user_input_str)
+    except NameError:
+        clinical_context = None
     if clinical_context:
         augmented_input = f"Relevant Protocol Context:\n{clinical_context}\n\nClinical Inquiry:\n{user_input_str}"
     else:
